@@ -24,5 +24,7 @@ Homestead.yaml
 Thumbs.db
 .claude
 .cursor
+openspec
+AGENTS.md
 CLAUDE.md
 boost.json
