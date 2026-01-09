@@ -11,6 +11,7 @@
     "require": {
         "php": "^8.2",
         "flugger/laravel-responder": "^3.5",
+        "google/apiclient": "^2.15",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1"
     },

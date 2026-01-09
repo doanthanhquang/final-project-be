@@ -46,4 +46,20 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    /**
+     * Get the email providers for the user.
+     */
+    public function emailProviders()
+    {
+        return $this->hasMany(EmailProvider::class);
+    }
+
+    /**
+     * Get the active email provider for the user.
+     */
+    public function activeEmailProvider()
+    {
+        return $this->hasOne(EmailProvider::class)->where('connected', true);
+    }
 }

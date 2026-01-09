@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuthToken;
 use App\Models\User;
+use App\Services\TokenService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -12,6 +13,10 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        private TokenService $tokenService
+    ) {}
+
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -34,37 +39,11 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // Revoke old tokens for this device (optional policy: keep multiple sessions?)
-        AuthToken::where('user_id', $user->id)
-            ->where('revoked', false)
-            ->update(['revoked' => true]);
+        $tokenData = $this->tokenService->createTokensForUser($user);
 
-        $now = Carbon::now();
-        $accessExpiresAt = $now->copy()->addMinutes(15);
-        $refreshExpiresAt = $now->copy()->addDays(7);
-
-        $token = AuthToken::create([
-            'user_id' => $user->id,
-            'access_token' => Str::random(64),
-            'access_expires_at' => $accessExpiresAt,
-            'refresh_token' => Str::random(64),
-            'refresh_expires_at' => $refreshExpiresAt,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'accessToken' => $token->access_token,
-            'accessTokenExpiresAt' => $accessExpiresAt->toIso8601String(),
-            'refreshToken' => $token->refresh_token,
-            'refreshTokenExpiresAt' => $refreshExpiresAt->toIso8601String(),
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'avatar' => $user->avatar,
-                'provider' => $user->provider ?? 'email',
-            ],
-        ]);
+        return response()->json(
+            $this->tokenService->buildAuthResponse($user, $tokenData)
+        );
     }
 
     public function refresh(Request $request)
