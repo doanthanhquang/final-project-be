@@ -37,6 +37,9 @@ class WorkflowController extends Controller
         }
 
         try {
+            // Process expired snoozes before getting states
+            $this->snoozeService->processExpiredSnoozesForUser($user->id);
+
             $states = $this->workflowService->getWorkflowStates($user->id);
 
             return response()->json([

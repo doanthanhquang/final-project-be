@@ -71,6 +71,31 @@ class SnoozeService
     }
 
     /**
+     * Process expired snoozes for a specific user.
+     */
+    public function processExpiredSnoozesForUser(int $userId): int
+    {
+        $expiredStates = EmailWorkflowState::forUser($userId)
+            ->expiredSnoozes()
+            ->get();
+
+        foreach ($expiredStates as $state) {
+            try {
+                $this->restoreEmail($state);
+            } catch (\Exception $e) {
+                Log::error('Failed to restore snoozed email for user', [
+                    'user_id' => $userId,
+                    'state_id' => $state->id,
+                    'email_id' => $state->email_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $expiredStates->count();
+    }
+
+    /**
      * Process expired snoozes (called by scheduled task).
      */
     public function processExpiredSnoozes(): int

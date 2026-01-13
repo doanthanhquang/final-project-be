@@ -37,7 +37,13 @@ class EmailWorkflowState extends Model
      */
     public function isSnoozed(): bool
     {
-        return $this->snoozed_until !== null && $this->snoozed_until->isFuture();
+        if ($this->snoozed_until === null) {
+            return false;
+        }
+
+        $nowInAppTimezone = now(config('app.timezone'));
+
+        return $this->snoozed_until->greaterThan($nowInAppTimezone);
     }
 
     /**
@@ -45,7 +51,13 @@ class EmailWorkflowState extends Model
      */
     public function isSnoozeExpired(): bool
     {
-        return $this->snoozed_until !== null && $this->snoozed_until->isPast();
+        if ($this->snoozed_until === null) {
+            return false;
+        }
+
+        $nowInAppTimezone = now(config('app.timezone'));
+
+        return $this->snoozed_until->lessThanOrEqualTo($nowInAppTimezone);
     }
 
     /**
@@ -53,9 +65,11 @@ class EmailWorkflowState extends Model
      */
     public function scopeSnoozed($query)
     {
+        $nowInAppTimezone = now(config('app.timezone'));
+
         return $query->where('column_id', 'snoozed')
             ->whereNotNull('snoozed_until')
-            ->where('snoozed_until', '>', now());
+            ->where('snoozed_until', '>', $nowInAppTimezone);
     }
 
     /**
@@ -63,9 +77,11 @@ class EmailWorkflowState extends Model
      */
     public function scopeExpiredSnoozes($query)
     {
+        $nowInAppTimezone = now(config('app.timezone'));
+
         return $query->where('column_id', 'snoozed')
             ->whereNotNull('snoozed_until')
-            ->where('snoozed_until', '<=', now());
+            ->where('snoozed_until', '<=', $nowInAppTimezone);
     }
 
     /**
