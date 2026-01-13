@@ -108,7 +108,7 @@ class WorkflowController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'snooze_until' => 'required_without:quick_option|date|after:now',
+            'snooze_until' => 'required_without:quick_option',
             'quick_option' => 'required_without:snooze_until|string|in:later_today,tomorrow,this_weekend,next_week',
         ]);
 
@@ -125,7 +125,9 @@ class WorkflowController extends Controller
             if ($request->has('quick_option')) {
                 $snoozeUntil = SnoozeService::getQuickSnoozeTime($request->input('quick_option'));
             } else {
-                $snoozeUntil = Carbon::parse($request->input('snooze_until'));
+                // Parse as UTC ISO string from frontend, then convert to app timezone (GMT+7)
+                $snoozeUntil = Carbon::parse($request->input('snooze_until'), 'UTC')
+                    ->setTimezone(config('app.timezone'));
             }
 
             $state = $this->snoozeService->snoozeEmail($user->id, $emailId, $snoozeUntil);

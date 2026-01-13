@@ -5,6 +5,7 @@ namespace App\Services\Workflow;
 use App\Models\EmailWorkflowState;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class SnoozeService
 {
@@ -17,8 +18,9 @@ class SnoozeService
      */
     public function snoozeEmail(int $userId, string $emailId, Carbon $snoozeUntil): EmailWorkflowState
     {
-        // Validate snooze time is in future
-        if ($snoozeUntil->isPast()) {
+        // Validate snooze time is in future (compare in app timezone)
+        $nowInAppTimezone = now(config('app.timezone'));
+        if ($snoozeUntil->lessThanOrEqualTo($nowInAppTimezone)) {
             throw new \InvalidArgumentException('Snooze time must be in the future');
         }
 
@@ -79,7 +81,7 @@ class SnoozeService
             try {
                 $this->restoreEmail($state);
             } catch (\Exception $e) {
-                \Log::error('Failed to restore snoozed email', [
+                Log::error('Failed to restore snoozed email', [
                     'state_id' => $state->id,
                     'email_id' => $state->email_id,
                     'error' => $e->getMessage(),
@@ -124,14 +126,17 @@ class SnoozeService
 
     /**
      * Calculate snooze time for quick options.
+     * All times are in app timezone (GMT+7).
      */
     public static function getQuickSnoozeTime(string $option): Carbon
     {
+        $now = now(config('app.timezone'));
+
         return match ($option) {
-            'later_today' => now()->addHours(4),
-            'tomorrow' => now()->addDay()->setTime(8, 0),
-            'this_weekend' => now()->next('Saturday')->setTime(9, 0),
-            'next_week' => now()->next('Monday')->setTime(9, 0),
+            'later_today' => $now->copy()->addHours(4),
+            'tomorrow' => $now->copy()->addDay()->setTime(8, 0),
+            'this_weekend' => $now->copy()->next('Saturday')->setTime(9, 0),
+            'next_week' => $now->copy()->next('Monday')->setTime(9, 0),
             default => throw new \InvalidArgumentException("Invalid snooze option: {$option}"),
         };
     }
