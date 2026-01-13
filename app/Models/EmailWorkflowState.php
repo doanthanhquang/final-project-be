@@ -53,7 +53,9 @@ class EmailWorkflowState extends Model
      */
     public function scopeSnoozed($query)
     {
-        return $query->whereNotNull('snoozed_until')->where('snoozed_until', '>', now());
+        return $query->where('column_id', 'snoozed')
+            ->whereNotNull('snoozed_until')
+            ->where('snoozed_until', '>', now());
     }
 
     /**
@@ -61,7 +63,9 @@ class EmailWorkflowState extends Model
      */
     public function scopeExpiredSnoozes($query)
     {
-        return $query->whereNotNull('snoozed_until')->where('snoozed_until', '<=', now());
+        return $query->where('column_id', 'snoozed')
+            ->whereNotNull('snoozed_until')
+            ->where('snoozed_until', '<=', now());
     }
 
     /**
