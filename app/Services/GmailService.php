@@ -92,26 +92,34 @@ class GmailService implements EmailServiceInterface
         $labels = $gmail->users_labels->listUsersLabels('me');
 
         $mailboxes = [];
+        $hasInbox = false;
+
         foreach ($labels->getLabels() as $label) {
+            $labelId = $label->getId();
+
             // Skip system labels we don't want to show
-            if (in_array($label->getId(), ['CHAT', 'SENT', 'DRAFT', 'SPAM', 'TRASH'])) {
+            if (in_array($labelId, ['CHAT', 'SENT', 'DRAFT', 'SPAM', 'TRASH'])) {
                 continue;
             }
 
+            // Track if INBOX is already in the list
+            if ($labelId === 'INBOX') {
+                $hasInbox = true;
+            }
+
             $mailboxes[] = [
-                'id' => $label->getId(),
+                'id' => $labelId,
                 'name' => $label->getName(),
-                'unread_count' => $label->getMessagesUnread() ?? 0,
             ];
         }
 
-        // Add standard mailboxes
-        $inboxLabel = $gmail->users_labels->get('me', 'INBOX');
-        array_unshift($mailboxes, [
-            'id' => 'INBOX',
-            'name' => 'Inbox',
-            'unread_count' => $inboxLabel->getMessagesUnread() ?? 0,
-        ]);
+        // Only add INBOX if it wasn't already in the labels list
+        if (! $hasInbox) {
+            array_unshift($mailboxes, [
+                'id' => 'INBOX',
+                'name' => 'Inbox',
+            ]);
+        }
 
         return $mailboxes;
     }

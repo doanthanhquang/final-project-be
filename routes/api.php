@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WorkflowController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -38,14 +39,18 @@ Route::middleware(['bearer.auth'])->group(function () {
     Route::get('/mailboxes', [EmailController::class, 'getMailboxes']);
     Route::get('/mailboxes/{mailboxId}/emails', [EmailController::class, 'getEmails']);
     Route::get('/emails/{emailId}', [EmailController::class, 'getEmailDetail']);
-    Route::post('/emails/send', [EmailController::class, 'sendEmail']);
-    Route::post('/emails/{emailId}/reply', [EmailController::class, 'replyEmail']);
-    Route::post('/emails/{emailId}/forward', [EmailController::class, 'forwardEmail']);
     Route::post('/emails/{emailId}/modify', [EmailController::class, 'modifyEmail']);
     Route::get('/emails/{emailId}/attachments/{attachmentId}', [EmailController::class, 'getAttachment']);
     Route::get('/emails/search', [EmailController::class, 'searchEmails']);
 
     // Email provider management
     Route::post('/email-provider/connect', [EmailController::class, 'connectProvider']);
-    Route::post('/email-provider/disconnect', [EmailController::class, 'disconnectProvider']);
+
+    // Workflow management routes
+    Route::get('/workflow/states', [WorkflowController::class, 'getWorkflowStates']);
+    Route::post('/workflow/states/{emailId}', [WorkflowController::class, 'updateWorkflowState']);
+    Route::post('/workflow/initialize/{emailId}', [WorkflowController::class, 'initializeEmail']);
+    Route::post('/workflow/snooze/{emailId}', [WorkflowController::class, 'snoozeEmail']);
+    Route::post('/workflow/unsnooze/{emailId}', [WorkflowController::class, 'unsnoozeEmail']);
+    Route::get('/emails/{emailId}/summary', [WorkflowController::class, 'getEmailSummary']);
 });

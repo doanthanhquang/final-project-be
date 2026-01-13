@@ -20,7 +20,7 @@ interface EmailServiceInterface
     /**
      * Get list of mailboxes (folders/labels).
      *
-     * @return array<int, array{id: string, name: string, unread_count: int}>
+     * @return array<int, array{id: string, name: string}>
      */
     public function getMailboxes(EmailProvider $provider): array;
 
