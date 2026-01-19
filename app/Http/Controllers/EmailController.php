@@ -136,6 +136,165 @@ class EmailController extends Controller
     }
 
     /**
+     * POST /api/emails/send
+     */
+    public function sendEmail(Request $request)
+    {
+        $provider = $this->getActiveProvider($request);
+        if (! $provider) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No email provider connected',
+            ], 400);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'to' => 'required|array|min:1',
+            'to.*' => 'required|string',
+            'subject' => 'required|string',
+            'body' => 'nullable|string',
+            'cc' => 'nullable|array',
+            'cc.*' => 'required|string',
+            'bcc' => 'nullable|array',
+            'bcc.*' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $data = [
+                'to' => $request->input('to', []),
+                'subject' => $request->input('subject'),
+                'body' => $request->input('body', ''),
+            ];
+
+            if ($request->filled('cc')) {
+                $data['cc'] = $request->input('cc');
+            }
+            if ($request->filled('bcc')) {
+                $data['bcc'] = $request->input('bcc');
+            }
+
+            $messageId = $this->gmailService->sendEmail($provider, $data);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $messageId,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send email: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/emails/:id/reply
+     */
+    public function replyEmail(Request $request, string $emailId)
+    {
+        $provider = $this->getActiveProvider($request);
+        if (! $provider) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No email provider connected',
+            ], 400);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'body' => 'required|string',
+            'subject' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $messageId = $this->gmailService->replyEmail(
+                $provider,
+                $emailId,
+                $request->input('body'),
+                $request->input('subject')
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $messageId,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reply to email: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/emails/:id/forward
+     */
+    public function forwardEmail(Request $request, string $emailId)
+    {
+        $provider = $this->getActiveProvider($request);
+        if (! $provider) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No email provider connected',
+            ], 400);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'to' => 'required|array|min:1',
+            'to.*' => 'required|string',
+            'message' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $messageId = $this->gmailService->forwardEmail(
+                $provider,
+                $emailId,
+                $request->input('to', []),
+                $request->input('message')
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $messageId,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to forward email: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * POST /api/emails/:id/modify
      */
     public function modifyEmail(Request $request, string $emailId)
@@ -192,7 +351,9 @@ class EmailController extends Controller
 
         try {
             $attachment = $this->gmailService->getAttachment($provider, $emailId, $attachmentId);
-            $content = base64_decode($attachment['content']);
+            // Gmail uses URL-safe base64 encoding, normalize before decoding
+            $rawData = str_replace(['-', '_'], ['+', '/'], $attachment['content']);
+            $content = base64_decode($rawData);
 
             return response($content)
                 ->header('Content-Type', $attachment['mime_type'])

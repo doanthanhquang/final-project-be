@@ -42,6 +42,9 @@ Route::middleware(['bearer.auth'])->group(function () {
     Route::get('/mailboxes', [EmailController::class, 'getMailboxes']);
     Route::get('/mailboxes/{mailboxId}/emails', [EmailController::class, 'getEmails']);
     Route::get('/emails/{emailId}', [EmailController::class, 'getEmailDetail']);
+    Route::post('/emails/send', [EmailController::class, 'sendEmail']);
+    Route::post('/emails/{emailId}/reply', [EmailController::class, 'replyEmail']);
+    Route::post('/emails/{emailId}/forward', [EmailController::class, 'forwardEmail']);
     Route::post('/emails/{emailId}/modify', [EmailController::class, 'modifyEmail']);
     Route::get('/emails/{emailId}/attachments/{attachmentId}', [EmailController::class, 'getAttachment']);
     Route::get('/search/emails', [EmailController::class, 'searchEmails']);
