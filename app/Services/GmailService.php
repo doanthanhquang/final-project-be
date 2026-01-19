@@ -574,4 +574,131 @@ class GmailService implements EmailServiceInterface
 
         return $message;
     }
+
+    /**
+     * Apply a Gmail label to an email.
+     *
+     * @param  EmailProvider  $provider  Email provider
+     * @param  string  $emailId  Email ID
+     * @param  string  $labelId  Gmail label ID
+     * @return bool Success status
+     */
+    public function applyLabelToEmail(EmailProvider $provider, string $emailId, string $labelId): bool
+    {
+        try {
+            $gmail = $this->getGmailClient($provider);
+            $modifyRequest = new \Google\Service\Gmail\ModifyMessageRequest;
+            $modifyRequest->setAddLabelIds([$labelId]);
+            $gmail->users_messages->modify('me', $emailId, $modifyRequest);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Failed to apply label to email', [
+                'email_id' => $emailId,
+                'label_id' => $labelId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Remove a Gmail label from an email.
+     *
+     * @param  EmailProvider  $provider  Email provider
+     * @param  string  $emailId  Email ID
+     * @param  string  $labelId  Gmail label ID
+     * @return bool Success status
+     */
+    public function removeLabelFromEmail(EmailProvider $provider, string $emailId, string $labelId): bool
+    {
+        try {
+            $gmail = $this->getGmailClient($provider);
+            $modifyRequest = new \Google\Service\Gmail\ModifyMessageRequest;
+            $modifyRequest->setRemoveLabelIds([$labelId]);
+            $gmail->users_messages->modify('me', $emailId, $modifyRequest);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Failed to remove label from email', [
+                'email_id' => $emailId,
+                'label_id' => $labelId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Create a Gmail label.
+     *
+     * @param  EmailProvider  $provider  Email provider
+     * @param  string  $labelName  Label name
+     * @return string Created label ID
+     */
+    public function createGmailLabel(EmailProvider $provider, string $labelName): string
+    {
+        try {
+            $gmail = $this->getGmailClient($provider);
+            $label = new \Google\Service\Gmail\Label;
+            $label->setName($labelName);
+            $label->setLabelListVisibility('labelShow');
+            $label->setMessageListVisibility('show');
+
+            $createdLabel = $gmail->users_labels->create('me', $label);
+
+            return $createdLabel->getId();
+        } catch (\Exception $e) {
+            // If label already exists, try to find it
+            if (str_contains($e->getMessage(), 'already exists') || str_contains($e->getMessage(), 'duplicate')) {
+                $labels = $this->listGmailLabels($provider);
+                foreach ($labels as $label) {
+                    if ($label['name'] === $labelName) {
+                        return $label['id'];
+                    }
+                }
+            }
+
+            Log::error('Failed to create Gmail label', [
+                'label_name' => $labelName,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * List all Gmail labels for the user.
+     *
+     * @param  EmailProvider  $provider  Email provider
+     * @return array Array of labels with id and name
+     */
+    public function listGmailLabels(EmailProvider $provider): array
+    {
+        try {
+            $gmail = $this->getGmailClient($provider);
+            $labels = $gmail->users_labels->listUsersLabels('me');
+            $labelList = [];
+
+            foreach ($labels->getLabels() as $label) {
+                // Skip system labels
+                $labelId = $label->getId();
+                if (in_array($labelId, ['CHAT', 'SENT', 'DRAFT', 'SPAM', 'TRASH', 'UNREAD', 'STARRED', 'IMPORTANT'])) {
+                    continue;
+                }
+
+                $labelList[] = [
+                    'id' => $labelId,
+                    'name' => $label->getName(),
+                ];
+            }
+
+            return $labelList;
+        } catch (\Exception $e) {
+            Log::error('Failed to list Gmail labels', [
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
 }

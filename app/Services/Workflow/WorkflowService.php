@@ -2,11 +2,19 @@
 
 namespace App\Services\Workflow;
 
+use App\Models\EmailProvider;
 use App\Models\EmailWorkflowState;
+use App\Models\KanbanColumnConfig;
+use App\Services\GmailService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class WorkflowService
 {
+    public function __construct(
+        private GmailService $gmailService
+    ) {}
+
     /**
      * Column IDs.
      */
@@ -95,6 +103,11 @@ class WorkflowService
             'position' => $newPosition,
             'previous_column_id' => $oldColumnId !== $newColumnId ? $oldColumnId : $state->previous_column_id,
         ]);
+
+        // Apply Gmail label if column has label mapping
+        if ($oldColumnId !== $newColumnId) {
+            $this->applyGmailLabelForColumn($userId, $emailId, $newColumnId);
+        }
 
         // Reorder positions in both columns
         $this->reorderColumn($userId, $oldColumnId);
@@ -188,5 +201,60 @@ class WorkflowService
         return EmailWorkflowState::forUser($userId)
             ->where('email_id', $emailId)
             ->first();
+    }
+
+    /**
+     * Apply Gmail label for a column if configured.
+     *
+     * @param  int  $userId  User ID
+     * @param  string  $emailId  Email ID
+     * @param  string  $columnId  Column ID
+     */
+    private function applyGmailLabelForColumn(int $userId, string $emailId, string $columnId): void
+    {
+        try {
+            // Get column configuration
+            $columnConfig = KanbanColumnConfig::forUser($userId)
+                ->where('column_id', $columnId)
+                ->first();
+
+            if (! $columnConfig || ! $columnConfig->gmail_label_id) {
+                // No label mapping configured for this column
+                return;
+            }
+
+            // Get user's active Gmail provider
+            $provider = EmailProvider::where('user_id', $userId)
+                ->where('connected', true)
+                ->where('provider_type', 'gmail')
+                ->first();
+
+            if (! $provider) {
+                Log::warning('No active Gmail provider found for label application', [
+                    'user_id' => $userId,
+                    'column_id' => $columnId,
+                ]);
+
+                return;
+            }
+
+            // Apply the label to the email
+            $this->gmailService->applyLabelToEmail($provider, $emailId, $columnConfig->gmail_label_id);
+
+            Log::info('Applied Gmail label to email', [
+                'user_id' => $userId,
+                'email_id' => $emailId,
+                'column_id' => $columnId,
+                'label_id' => $columnConfig->gmail_label_id,
+            ]);
+        } catch (\Exception $e) {
+            // Log error but don't fail the move operation
+            Log::error('Failed to apply Gmail label', [
+                'user_id' => $userId,
+                'email_id' => $emailId,
+                'column_id' => $columnId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

@@ -3,6 +3,9 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailController;
 use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\KanbanConfigController;
+use App\Http\Controllers\SearchController;
+use App\Http\Controllers\SemanticSearchController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkflowController;
 use Illuminate\Support\Facades\Route;
@@ -42,6 +45,8 @@ Route::middleware(['bearer.auth'])->group(function () {
     Route::post('/emails/{emailId}/modify', [EmailController::class, 'modifyEmail']);
     Route::get('/emails/{emailId}/attachments/{attachmentId}', [EmailController::class, 'getAttachment']);
     Route::get('/search/emails', [EmailController::class, 'searchEmails']);
+    Route::get('/search/suggestions', [SearchController::class, 'getSuggestions']);
+    Route::post('/search/semantic', [SemanticSearchController::class, 'search']);
 
     // Email provider management
     Route::post('/email-provider/connect', [EmailController::class, 'connectProvider']);
@@ -53,4 +58,12 @@ Route::middleware(['bearer.auth'])->group(function () {
     Route::post('/workflow/snooze/{emailId}', [WorkflowController::class, 'snoozeEmail']);
     Route::post('/workflow/unsnooze/{emailId}', [WorkflowController::class, 'unsnoozeEmail']);
     Route::get('/emails/{emailId}/summary', [WorkflowController::class, 'getEmailSummary']);
+
+    // Kanban configuration routes
+    Route::get('/kanban/columns', [KanbanConfigController::class, 'getColumns']);
+    Route::post('/kanban/columns', [KanbanConfigController::class, 'createColumn']);
+    Route::put('/kanban/columns/{columnId}', [KanbanConfigController::class, 'updateColumn']);
+    Route::delete('/kanban/columns/{columnId}', [KanbanConfigController::class, 'deleteColumn']);
+    Route::post('/kanban/columns/reorder', [KanbanConfigController::class, 'reorderColumns']);
+    Route::get('/kanban/gmail-labels', [KanbanConfigController::class, 'getGmailLabels']);
 });
