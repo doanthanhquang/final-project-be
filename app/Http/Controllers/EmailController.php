@@ -73,6 +73,8 @@ class EmailController extends Controller
         $validator = Validator::make($request->all(), [
             'page' => 'integer|min:1',
             'limit' => 'integer|min:1|max:100',
+            'unread_only' => 'nullable|boolean',
+            'has_attachments' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -86,7 +88,8 @@ class EmailController extends Controller
         try {
             $page = $request->input('page', 1);
             $limit = $request->input('limit', 50);
-            $emails = $this->gmailService->getEmails($provider, $mailboxId, $page, $limit);
+            $filters = $request->only(['unread_only', 'has_attachments']);
+            $emails = $this->gmailService->getEmails($provider, $mailboxId, $page, $limit, $filters);
 
             return response()->json([
                 'success' => true,

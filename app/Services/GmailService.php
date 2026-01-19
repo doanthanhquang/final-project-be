@@ -124,7 +124,7 @@ class GmailService implements EmailServiceInterface
         return $mailboxes;
     }
 
-    public function getEmails(EmailProvider $provider, string $mailboxId, int $page = 1, int $limit = 50): LengthAwarePaginator
+    public function getEmails(EmailProvider $provider, string $mailboxId, int $page = 1, int $limit = 50, array $filters = []): LengthAwarePaginator
     {
         $gmail = $this->getGmailClient($provider);
 
@@ -132,6 +132,14 @@ class GmailService implements EmailServiceInterface
         $query = "label:{$mailboxId}";
         if ($mailboxId === 'INBOX') {
             $query = 'in:inbox';
+        }
+
+        // Apply filters
+        if (isset($filters['unread_only']) && $filters['unread_only']) {
+            $query .= ' is:unread';
+        }
+        if (isset($filters['has_attachments']) && $filters['has_attachments']) {
+            $query .= ' has:attachment';
         }
 
         $optParams = [

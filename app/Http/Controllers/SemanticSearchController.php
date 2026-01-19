@@ -69,6 +69,8 @@ class SemanticSearchController extends Controller
         }
 
         try {
+            $startTime = microtime(true);
+
             $query = $request->input('query');
             $limit = $request->input('limit', 50);
             $threshold = $request->input('threshold');
@@ -83,22 +85,21 @@ class SemanticSearchController extends Controller
             );
 
             if (empty($semanticResults)) {
+                $tookMs = (int) ((microtime(true) - $startTime) * 1000);
+
                 return response()->json([
                     'success' => true,
                     'data' => [],
-                    'pagination' => [
-                        'current_page' => $page,
-                        'per_page' => $limit,
-                        'total' => 0,
-                        'last_page' => 1,
-                        'has_more' => false,
+                    'meta' => [
+                        'took_ms' => $tookMs,
+                        'model' => config('services.openai.embedding_model', 'text-embedding-3-small'),
                     ],
                 ]);
             }
 
             // Fetch full email details for matched email IDs
             $emailIds = array_column($semanticResults, 'email_id');
-            $emails = [];
+            $results = [];
             $similarityScores = array_column($semanticResults, 'similarity_score', 'email_id');
 
             // Get emails from Gmail service
@@ -108,11 +109,39 @@ class SemanticSearchController extends Controller
                 try {
                     $email = $this->gmailService->getEmailDetail($provider, $emailId);
                     if ($email) {
-                        // Add fields expected by frontend
-                        $email['relevance_score'] = $similarityScores[$emailId] ?? 0;
-                        $email['read'] = false; // Default, could be fetched from Gmail API
-                        $email['has_attachments'] = ! empty($email['attachments']);
-                        $emails[] = $email;
+                        $score = $similarityScores[$emailId] ?? 0.0;
+
+                        // Build displayable "from" string
+                        $from = $email['from'] ?? null;
+                        if (is_array($from)) {
+                            $name = $from['name'] ?? '';
+                            $address = $from['email'] ?? '';
+                            $fromDisplay = $name !== '' ? sprintf('%s <%s>', $name, $address) : $address;
+                        } else {
+                            $fromDisplay = (string) $from;
+                        }
+
+                        // Build snippet/summary from body
+                        $bodyText = $email['body_text'] ?? null;
+                        $bodyHtml = $email['body_html'] ?? null;
+                        $rawSnippet = $bodyText ?: ($bodyHtml ? strip_tags($bodyHtml) : '');
+                        $snippet = mb_substr(trim($rawSnippet), 0, 200);
+
+                        $results[] = [
+                            'id' => $email['id'],
+                            'gmail_message_id' => $email['id'],
+                            'subject' => $email['subject'],
+                            'from' => $fromDisplay,
+                            'date' => $email['date'],
+                            'snippet' => $snippet,
+                            'summary' => $snippet,
+                            // Scores
+                            'score' => $score,
+                            'relevance_score' => round($score * 100),
+                            // Extra metadata used by frontend
+                            'read' => false,
+                            'has_attachments' => ! empty($email['attachments']),
+                        ];
                     }
                 } catch (\Exception $e) {
                     // Skip emails that can't be fetched
@@ -120,20 +149,15 @@ class SemanticSearchController extends Controller
                 }
             }
 
-            // Apply pagination
-            $total = count($emails);
-            $offset = ($page - 1) * $limit;
-            $paginatedEmails = array_slice($emails, $offset, $limit);
+            $tookMs = (int) ((microtime(true) - $startTime) * 1000);
+            $modelUsed = $semanticResults[0]['model_used'] ?? config('services.openai.embedding_model', 'text-embedding-3-small');
 
             return response()->json([
                 'success' => true,
-                'data' => $paginatedEmails,
-                'pagination' => [
-                    'current_page' => $page,
-                    'per_page' => $limit,
-                    'total' => $total,
-                    'last_page' => (int) ceil($total / $limit),
-                    'has_more' => ($offset + $limit) < $total,
+                'data' => $results,
+                'meta' => [
+                    'took_ms' => $tookMs,
+                    'model' => $modelUsed,
                 ],
             ]);
         } catch (\Exception $e) {
