@@ -41,7 +41,7 @@ Route::middleware(['bearer.auth'])->group(function () {
     Route::get('/emails/{emailId}', [EmailController::class, 'getEmailDetail']);
     Route::post('/emails/{emailId}/modify', [EmailController::class, 'modifyEmail']);
     Route::get('/emails/{emailId}/attachments/{attachmentId}', [EmailController::class, 'getAttachment']);
-    Route::get('/emails/search', [EmailController::class, 'searchEmails']);
+    Route::get('/search/emails', [EmailController::class, 'searchEmails']);
 
     // Email provider management
     Route::post('/email-provider/connect', [EmailController::class, 'connectProvider']);

@@ -223,6 +223,7 @@ class EmailController extends Controller
             'query' => 'required|string|min:1',
             'unread_only' => 'nullable|boolean',
             'has_attachments' => 'nullable|boolean',
+            'fuzzy' => 'nullable|boolean',
             'page' => 'integer|min:1',
             'limit' => 'integer|min:1|max:100',
         ]);
@@ -234,12 +235,13 @@ class EmailController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
-
         try {
             $page = $request->input('page', 1);
             $limit = $request->input('limit', 50);
+            $fuzzy = $request->input('fuzzy', false);
             $filters = $request->only(['unread_only', 'has_attachments']);
-            $emails = $this->gmailService->searchEmails($provider, $request->input('query'), $filters, $page, $limit);
+
+            $emails = $this->gmailService->searchEmails($provider, $request->input('query'), $filters, $page, $limit, $fuzzy);
 
             return response()->json([
                 'success' => true,

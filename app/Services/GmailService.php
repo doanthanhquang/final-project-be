@@ -290,10 +290,66 @@ class GmailService implements EmailServiceInterface
         ];
     }
 
-    public function searchEmails(EmailProvider $provider, string $query, array $filters = [], int $page = 1, int $limit = 50): LengthAwarePaginator
+    public function searchEmails(EmailProvider $provider, string $query, array $filters = [], int $page = 1, int $limit = 50, bool $fuzzy = false): LengthAwarePaginator
     {
         $gmail = $this->getGmailClient($provider);
 
+        if ($fuzzy) {
+            // For fuzzy search, fetch a larger set of emails first, then filter client-side
+            $optParams = [
+                'maxResults' => min(10, $limit * 10), // Fetch more for fuzzy matching
+            ];
+
+            // Apply Gmail filters if specified
+            $gmailQuery = '';
+            if (isset($filters['unread_only']) && $filters['unread_only']) {
+                $gmailQuery .= ' is:unread';
+            }
+            if (isset($filters['has_attachments']) && $filters['has_attachments']) {
+                $gmailQuery .= ' has:attachment';
+            }
+
+            if (! empty($gmailQuery)) {
+                $optParams['q'] = trim($gmailQuery);
+            }
+
+            $messages = $gmail->users_messages->listUsersMessages('me', $optParams);
+            $messageList = $messages->getMessages() ?? [];
+
+            $emails = [];
+            foreach ($messageList as $messageItem) {
+                $message = $gmail->users_messages->get('me', $messageItem->getId(), ['format' => 'metadata']);
+                $headers = $message->getPayload()->getHeaders();
+
+                $emails[] = [
+                    'id' => $message->getId(),
+                    'subject' => $this->getHeader($headers, 'Subject') ?? '(No Subject)',
+                    'from' => $this->getHeader($headers, 'From') ?? '',
+                    'date' => $this->getHeader($headers, 'Date') ?? '',
+                    'read' => ! in_array('UNREAD', $message->getLabelIds()),
+                    'has_attachments' => $this->hasAttachments($message->getPayload()),
+                ];
+            }
+
+            // Apply fuzzy search
+            $fuzzySearchService = new FuzzySearchService;
+            $fuzzyResults = $fuzzySearchService->search($emails, $query);
+
+            // Paginate the fuzzy results
+            $total = count($fuzzyResults);
+            $offset = ($page - 1) * $limit;
+            $paginatedResults = array_slice($fuzzyResults, $offset, $limit);
+
+            return new LengthAwarePaginator(
+                $paginatedResults,
+                $total,
+                $limit,
+                $page,
+                ['path' => request()->url(), 'query' => request()->query()]
+            );
+        }
+
+        // Exact search (original behavior)
         $searchQuery = $query;
         if (isset($filters['unread_only']) && $filters['unread_only']) {
             $searchQuery .= ' is:unread';
@@ -321,6 +377,7 @@ class GmailService implements EmailServiceInterface
                 'from' => $this->getHeader($headers, 'From') ?? '',
                 'date' => $this->getHeader($headers, 'Date') ?? '',
                 'read' => ! in_array('UNREAD', $message->getLabelIds()),
+                'has_attachments' => $this->hasAttachments($message->getPayload()),
             ];
         }
 
