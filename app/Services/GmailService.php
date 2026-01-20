@@ -288,14 +288,49 @@ class GmailService implements EmailServiceInterface
     public function getAttachment(EmailProvider $provider, string $emailId, string $attachmentId): array
     {
         $gmail = $this->getGmailClient($provider);
-        $attachment = $gmail->users_messages_attachments->get('me', $emailId, $attachmentId);
+        $message = $gmail->users_messages->get('me', $emailId, ['format' => 'full']);
+        $payload = $message->getPayload();
+
+        $meta = $this->findAttachmentMeta($payload, $attachmentId);
+
+        $att = $gmail->users_messages_attachments->get('me', $emailId, $attachmentId);
+        $data = $att->getData() ?? '';
 
         return [
-            'content' => $attachment->getData(),
-            'filename' => $attachmentId, // Will be determined from message part
-            'mime_type' => $attachment->getMimeType() ?? 'application/octet-stream',
-            'size' => strlen(base64_decode($attachment->getData())),
+            'content' => $data, // base64url string (NOT decoded yet)
+            'filename' => $meta['filename'] ?? ('attachment-'.$attachmentId),
+            'mime_type' => $meta['mime_type'] ?? 'application/octet-stream',
+            'size' => $att->getSize() ?? (strlen(base64_decode(strtr($data, '-_', '+/'))) ?: 0),
         ];
+    }
+
+    private function findAttachmentMeta($part, string $attachmentId): ?array
+    {
+        if (! $part) {
+            return null;
+        }
+
+        $body = $part->getBody();
+        $partAttachmentId = $body ? $body->getAttachmentId() : null;
+
+        if ($partAttachmentId && $partAttachmentId === $attachmentId) {
+            return [
+                'filename' => $part->getFilename() ?: null,
+                'mime_type' => $part->getMimeType() ?: null,
+            ];
+        }
+
+        $parts = $part->getParts();
+        if ($parts) {
+            foreach ($parts as $p) {
+                $found = $this->findAttachmentMeta($p, $attachmentId);
+                if ($found) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
     }
 
     public function searchEmails(EmailProvider $provider, string $query, array $filters = [], int $page = 1, int $limit = 50, bool $fuzzy = false): LengthAwarePaginator
