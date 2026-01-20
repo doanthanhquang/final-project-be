@@ -25,7 +25,10 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => [
+        'X-New-Access-Token',
+        'X-Access-Token-Expires-At',
+    ],
 
     'max_age' => 0,
 
