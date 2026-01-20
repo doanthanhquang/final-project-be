@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register route middleware aliases
         $middleware->alias([
             'bearer.auth' => App\Http\Middleware\BearerTokenAuth::class,
+            'long.timeout' => App\Http\Middleware\ExtendExecutionTime::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

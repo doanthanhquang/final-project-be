@@ -48,7 +48,7 @@ Route::middleware(['bearer.auth'])->group(function () {
     Route::post('/emails/{emailId}/modify', [EmailController::class, 'modifyEmail']);
     Route::get('/emails/{emailId}/attachments/{attachmentId}', [EmailController::class, 'getAttachment']);
     Route::get('/search/fuzzy', [EmailController::class, 'searchEmails']);
-    Route::get('/search/suggestions', [SearchController::class, 'getSuggestions']);
+    Route::get('/search/suggestions', [SearchController::class, 'getSuggestions'])->middleware('long.timeout:300');
     Route::post('/search/semantic', [SemanticSearchController::class, 'search']);
 
     // Email provider management
