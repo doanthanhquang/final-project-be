@@ -305,7 +305,7 @@ class GmailService implements EmailServiceInterface
         if ($fuzzy) {
             // For fuzzy search, fetch a larger set of emails first, then filter client-side
             $optParams = [
-                'maxResults' => min(10, $limit * 10), // Fetch more for fuzzy matching
+                'maxResults' => min(50, $limit * 100), // Fetch more for fuzzy matching
             ];
 
             // Apply Gmail filters if specified
