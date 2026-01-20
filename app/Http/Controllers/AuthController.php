@@ -41,25 +41,38 @@ class AuthController extends Controller
 
         $tokenData = $this->tokenService->createTokensForUser($user);
 
-        return response()->json(
+        // Set refresh token in httpOnly cookie (server-side only)
+        $response = response()->json(
             $this->tokenService->buildAuthResponse($user, $tokenData)
         );
+
+        // Store refresh token in httpOnly cookie for security
+        $response->cookie(
+            'refresh_token',
+            $tokenData['token']->refresh_token,
+            config('session.lifetime', 10080), // 7 days in minutes
+            '/',
+            null,
+            true, // secure (HTTPS only)
+            true  // httpOnly (not accessible via JavaScript)
+        );
+
+        return $response;
     }
 
     public function refresh(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'refreshToken' => 'required|string',
-        ]);
-        if ($validator->fails()) {
+        // Get refresh token from httpOnly cookie (server-side only)
+        $refreshToken = $request->cookie('refresh_token');
+
+        if (! $refreshToken) {
             return response()->json([
                 'success' => false,
-                'message' => $validator->errors()->first(),
-                'errors' => $validator->errors(),
-            ], 422);
+                'message' => 'Refresh token not found',
+            ], 401);
         }
 
-        $token = AuthToken::where('refresh_token', $request->input('refreshToken'))
+        $token = AuthToken::where('refresh_token', $refreshToken)
             ->where('revoked', false)
             ->first();
 
@@ -70,7 +83,7 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // Rotate access token (and optionally refresh token)
+        // Rotate access token
         $token->access_token = Str::random(64);
         $token->access_expires_at = Carbon::now()->addMinutes(15);
         $token->save();
@@ -89,15 +102,19 @@ class AuthController extends Controller
             AuthToken::where('access_token', $bearer)->update(['revoked' => true]);
         }
 
-        // Also allow logging out by refresh token for safety
-        if ($request->filled('refreshToken')) {
-            AuthToken::where('refresh_token', $request->input('refreshToken'))->update(['revoked' => true]);
+        // Revoke refresh token from cookie
+        $refreshToken = $request->cookie('refresh_token');
+        if ($refreshToken) {
+            AuthToken::where('refresh_token', $refreshToken)->update(['revoked' => true]);
         }
 
-        return response()->json([
+        $response = response()->json([
             'success' => true,
             'message' => 'Logged out',
         ]);
+
+        // Clear refresh token cookie
+        return $response->cookie('refresh_token', '', -1, '/', null, true, true);
     }
 
     public function me(Request $request)

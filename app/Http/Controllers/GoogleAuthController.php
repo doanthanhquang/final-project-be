@@ -112,12 +112,26 @@ class GoogleAuthController extends Controller
                 ]);
             }
 
-            return response()->json(
+            // Set refresh token in httpOnly cookie (server-side only)
+            $response = response()->json(
                 $this->tokenService->buildAuthResponse($user, $tokenData, [
                     'isNewUser' => $user->wasRecentlyCreated,
                     'emailProviderConnected' => $emailProviderConnected,
                 ])
             );
+
+            // Store refresh token in httpOnly cookie for security
+            $response->cookie(
+                'refresh_token',
+                $tokenData['token']->refresh_token,
+                config('session.lifetime', 10080), // 7 days in minutes
+                '/',
+                null,
+                true, // secure (HTTPS only)
+                true  // httpOnly (not accessible via JavaScript)
+            );
+
+            return $response;
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
